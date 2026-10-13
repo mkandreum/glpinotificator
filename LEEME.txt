@@ -1,26 +1,32 @@
-GLPI NOTIFICATOR - INSTALACION (USB / DOBLE CLIC)
-=================================================
+GLPI NOTIFICATOR - GUIA DE INSTALACION
+======================================
 
-1. Descomprime TODO este ZIP en una carpeta.
-2. Doble clic en  instalar.bat
-3. Listo. Se crea un acceso directo "GLPI Notificator" en el Escritorio,
-   se instala en tu perfil de Windows y se abre.
+OPCION 1 (Recomendada):
+   Ejecuta el archivo "GLPI-Notificator-Setup.exe" y sigue el asistente.
+   No requiere permisos de administrador.
+
+OPCION 2 (Desde esta carpeta):
+   Haz doble clic en "instalar.bat".
+   Se instalara automaticamente en tu usuario de Windows sin consolas ni preguntas tecnicas.
+
+Al finalizar:
+   - Se creara el acceso directo en tu Escritorio y Menu Inicio.
+   - Quedara configurado para iniciar automaticamente con Windows.
+   - Se abrira la aplicacion.
 
 La PRIMERA VEZ te pedira:
    - Direccion de tu GLPI (ej. https://glpi.miempresa.com)
    - Usuario y contrasena de GLPI
    - App-Token (solo si tu servidor lo exige)
 
-El acceso se guarda CIFRADO en tu equipo (solo tu usuario de Windows
-puede leerlo). No te lo volvera a pedir.
-
-El instalador te preguntara si quieres que arranque solo al encender el PC.
+Las credenciales se guardan CIFRADAS con la seguridad de Windows (DPAPI).
 
 PARA DESINSTALAR:
-   Doble clic en  desinstalar.bat
+   - Desde Windows: Inicio > Configuracion > Aplicaciones instaladas > GLPI Notificator > Desinstalar
+   - O bien haz doble clic en "desinstalar.bat".
 
 REQUISITOS:
-   - Windows 10/11
-   - GLPI con la API REST activada
+   - Windows 10 u 11
+   - Servidor GLPI con API REST activada
 
-MAS INFORMACION: https://github.com/mkandreum/glpinotificator
+CODIGO Y RELEASES: https://github.com/mkandreum/glpinotificator

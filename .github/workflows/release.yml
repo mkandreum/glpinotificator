@@ -28,15 +28,21 @@ jobs:
       - name: Compilar la app (PyInstaller, modo carpeta)
         run: python -m PyInstaller --noconfirm --onedir --noconsole --name GlpiNotificator --icon icon.ico --add-data "icon.ico;." avisa_glpi.py
 
+      - name: Compilar instalador Setup con Inno Setup
+        run: iscc installer.iss
+
       - name: Empaquetar ZIP de distribucion
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force build\release | Out-Null
           Copy-Item dist\GlpiNotificator\* build\release\ -Recurse -Force
+          Copy-Item dist\GLPI-Notificator-Setup.exe build\release\ -Force
           Copy-Item instalar.bat,instalar.ps1,desinstalar.bat,desinstalar.ps1,LEEME.txt build\release\ -Force
           Compress-Archive -Path build\release\* -DestinationPath dist\GLPI-Notificator.zip -Force
 
       - name: Publicar Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/GLPI-Notificator.zip
+          files: |
+            dist/GLPI-Notificator-Setup.exe
+            dist/GLPI-Notificator.zip

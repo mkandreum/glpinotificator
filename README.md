@@ -37,17 +37,22 @@ tkinter). El login se pide **una sola vez** y se guarda **cifrado con Windows
 
 ## Instalación
 
-### Opción A — Automática (recomendada, plug and play)
+### Opción A — Instalador Setup (Recomendada, 1 solo archivo)
 
-1. Ve a la sección **[Releases](https://github.com/mkandreum/glpinotificator/releases)**
-   y descarga `GLPI-Notificator.zip`.
-2. Descomprime el ZIP en cualquier carpeta.
-3. Doble clic en **`instalar.bat`**.
+1. Ve a la sección **[Releases](https://github.com/mkandreum/glpinotificator/releases)**.
+2. Descarga **`GLPI-Notificator-Setup.exe`**.
+3. Haz doble clic y sigue el asistente visual.
 
-El instalador copia la app a `%LOCALAPPDATA%\Programs\GlpiNotificator`, crea los
-accesos directos en el **Escritorio** y el **Menú Inicio**, te pregunta si quieres
-que arranque solo al encender el PC y lanza la aplicación. Para desinstalar:
-doble clic en `desinstalar.bat`.
+- No requiere permisos de administrador.
+- Permite activar el inicio automático con Windows y acceso directo en el Escritorio.
+- Se integra en el panel oficial de Windows (*Configuración > Aplicaciones instaladas*).
+
+### Opción B — Paquete ZIP / Carpeta portable
+
+1. Descarga `GLPI-Notificator.zip` y descomprímelo.
+2. Haz doble clic en **`instalar.bat`**.
+3. Se instalará automáticamente en tu usuario de Windows de forma limpia y silenciosa (sin consolas negras ni preguntas de terminal).
+4. Para desinstalar: doble clic en `desinstalar.bat`.
 
 > La app guarda `config.json` y `credenciales.dat` **junto al ejecutable**.
 

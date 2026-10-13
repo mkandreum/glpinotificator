@@ -1,3 +1,4 @@
 @echo off
-REM Desinstalador de GLPI Notificator.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0desinstalar.ps1"
+REM Desinstalador de GLPI Notificator
+cd /d "%~dp0"
+start "" powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0desinstalar.ps1"

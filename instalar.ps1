@@ -1,32 +1,52 @@
-# Instalador de GLPI Notificator (se ejecuta desde instalar.bat)
+# Instalador amigable de GLPI Notificator
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
 
-$src  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$src = Split-Path -Parent $MyInvocation.MyCommand.Path
+$setupExe = Join-Path $src 'GLPI-Notificator-Setup.exe'
+if (Test-Path -LiteralPath $setupExe) {
+    Start-Process -FilePath $setupExe
+    exit 0
+}
+
 $exeSrc = Join-Path $src 'GlpiNotificator.exe'
 $dest = Join-Path $env:LOCALAPPDATA 'Programs\GlpiNotificator'
 $exeDest = Join-Path $dest 'GlpiNotificator.exe'
 
-Write-Host "============================================"
-Write-Host "  GLPI Notificator - Instalacion automatica"
-Write-Host "============================================"
-Write-Host ""
-
 if (-not (Test-Path -LiteralPath $exeSrc)) {
-    Write-Host "[ERROR] No encuentro GlpiNotificator.exe junto a este instalador."
-    Write-Host "        Descomprime TODA la carpeta del ZIP y vuelve a ejecutar instalar.bat."
-    Read-Host "Pulsa Enter para salir"
+    [System.Windows.Forms.MessageBox]::Show(
+        "No se encontro 'GlpiNotificator.exe' en esta carpeta.`nPor favor, descomprime todo el contenido antes de instalar.",
+        "GLPI Notificator - Error",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error
+    ) | Out-Null
     exit 1
 }
 
-try { Get-Process -Name GlpiNotificator -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue } catch {}
+# Cerrar versiones previas si estan abiertas
+try {
+    Get-Process -Name GlpiNotificator -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 300
+} catch {}
 
-Write-Host "Instalando en: $dest"
-if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
-New-Item -ItemType Directory -Path $dest -Force | Out-Null
-Copy-Item -Path (Join-Path $src '*') -Destination $dest -Recurse -Force
+# Copiar archivos sin borrar configuraciones o credenciales existentes
+try {
+    if (-not (Test-Path -LiteralPath $dest)) {
+        New-Item -ItemType Directory -Path $dest -Force | Out-Null
+    }
+    Copy-Item -Path (Join-Path $src '*') -Destination $dest -Recurse -Force
+} catch {
+    [System.Windows.Forms.MessageBox]::Show(
+        "No se pudieron copiar los archivos a:`n$dest`n`nDetalle: $_",
+        "GLPI Notificator - Error",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error
+    ) | Out-Null
+    exit 1
+}
 
+# Crear accesos directos
 $ws = New-Object -ComObject WScript.Shell
-
 function Nuevo-Acceso($rutaLnk) {
     $lnk = $ws.CreateShortcut($rutaLnk)
     $lnk.TargetPath = $exeDest
@@ -38,26 +58,19 @@ function Nuevo-Acceso($rutaLnk) {
 
 $escritorio = [Environment]::GetFolderPath('Desktop')
 Nuevo-Acceso (Join-Path $escritorio 'GLPI Notificator.lnk')
+
 $menuInicio = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
 Nuevo-Acceso (Join-Path $menuInicio 'GLPI Notificator.lnk')
-Write-Host "Accesos directos creados (Escritorio y Menu Inicio)."
 
-$resp = Read-Host "Quieres que se inicie solo al encender el PC? (S/N)"
-if ($resp -match '^[SsYy]') {
-    $inicio = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
-    Nuevo-Acceso (Join-Path $inicio 'GLPI Notificator.lnk')
-    Write-Host "Inicio automatico ACTIVADO."
-} else {
-    $inicio = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
-    $lnkAuto = Join-Path $inicio 'GLPI Notificator.lnk'
-    if (Test-Path -LiteralPath $lnkAuto) { Remove-Item -LiteralPath $lnkAuto -Force }
-    Write-Host "Inicio automatico desactivado."
-}
+$inicio = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
+Nuevo-Acceso (Join-Path $inicio 'GLPI Notificator.lnk')
 
-Write-Host ""
-Write-Host "Instalado. Iniciando GLPI Notificator..."
-Start-Process -FilePath $exeDest
-Write-Host ""
-Write-Host "Listo. La primera vez te pedira tu URL de GLPI, usuario y contrasena."
-Write-Host "Ya puedes cerrar esta ventana (o pulsa Enter)."
-Read-Host
+# Iniciar la aplicacion inmediatamente
+Start-Process -FilePath $exeDest -WorkingDirectory $dest
+
+[System.Windows.Forms.MessageBox]::Show(
+    "GLPI Notificator se ha instalado correctamente.`n`n- Acceso directo creado en el Escritorio.`n- Inicio automatico con Windows activado.`n- La aplicacion ya esta ejecutandose en segundo plano.",
+    "GLPI Notificator",
+    [System.Windows.Forms.MessageBoxButtons]::OK,
+    [System.Windows.Forms.MessageBoxIcon]::Information
+) | Out-Null
