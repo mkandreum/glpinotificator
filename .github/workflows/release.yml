@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias de compilacion
+        run: python -m pip install --upgrade pyinstaller pillow
+
+      - name: Generar icono
+        run: python make_icon.py
+
+      - name: Compilar la app (PyInstaller, modo carpeta)
+        run: python -m PyInstaller --noconfirm --onedir --noconsole --name GlpiNotificator --icon icon.ico --add-data "icon.ico;." avisa_glpi.py
+
+      - name: Empaquetar ZIP de distribucion
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build\release | Out-Null
+          Copy-Item dist\GlpiNotificator\* build\release\ -Recurse -Force
+          Copy-Item instalar.bat,instalar.ps1,desinstalar.bat,desinstalar.ps1,LEEME.txt build\release\ -Force
+          Compress-Archive -Path build\release\* -DestinationPath dist\GLPI-Notificator.zip -Force
+
+      - name: Publicar Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/GLPI-Notificator.zip

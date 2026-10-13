@@ -37,11 +37,19 @@ tkinter). El login se pide **una sola vez** y se guarda **cifrado con Windows
 
 ## Instalación
 
-### Opción A — Ejecutable (recomendado, sin Python)
+### Opción A — Automática (recomendada, plug and play)
 
-1. Descarga `GlpiNotificator.exe` desde la sección **Releases**
-   (o compílalo tú, ver más abajo).
-2. Doble clic en el `.exe`. Listo.
+1. Ve a la sección **[Releases](https://github.com/mkandreum/glpinotificator/releases)**
+   y descarga `GLPI-Notificator.zip`.
+2. Descomprime el ZIP en cualquier carpeta.
+3. Doble clic en **`instalar.bat`**.
+
+El instalador copia la app a `%LOCALAPPDATA%\Programs\GlpiNotificator`, crea los
+accesos directos en el **Escritorio** y el **Menú Inicio**, te pregunta si quieres
+que arranque solo al encender el PC y lanza la aplicación. Para desinstalar:
+doble clic en `desinstalar.bat`.
+
+> La app guarda `config.json` y `credenciales.dat` **junto al ejecutable**.
 
 ### Opción B — Desde el código fuente
 
@@ -101,8 +109,25 @@ del login.
 build_exe.bat
 ```
 
-Genera `dist\GlpiNotificator.exe` (un único archivo, sin consola). Requiere
-conexión a internet la primera vez, para instalar PyInstaller.
+Genera `dist\GlpiNotificator\GlpiNotificator.exe` en **modo carpeta**
+(`--onedir`), que **arranca al instante**. Requiere conexión a internet la
+primera vez, para instalar PyInstaller.
+
+Para generar el **ZIP de distribución** (con el instalador incluido):
+
+```bat
+crear_release.bat
+```
+
+Crea `dist\GLPI-Notificator.zip`, que es lo que se sube a un Release.
+
+> **Publicación automática:** el flujo `.github/workflows/release.yml` compila y
+> publica el ZIP solo, al subir una etiqueta `v*` (por ejemplo `git tag v1.0.0`
+> y `git push --tags`).
+
+> ¿Un solo archivo portable? Cambia `--onedir` por `--onefile` en el script.
+> Aviso: el modo de un solo archivo **extrae todo a `%TEMP%` en cada arranque**,
+> por lo que tarda bastante más en abrir (y el antivirus lo escanea cada vez).
 
 ## Privacidad y seguridad
 
