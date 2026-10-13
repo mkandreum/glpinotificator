@@ -789,6 +789,7 @@ class App:
     # -- ventana de login (una sola vez) ------------------------------------
     def ventana_login(self):
         ok = {"valor": False}
+        res = queue.Queue()
 
         win = tk.Toplevel(self.root)
         win.title("AVISOS GLPI")
@@ -853,7 +854,7 @@ class App:
             log("Intento de login: url=%s usuario=%s app_token=%s" % (
                 url, user, "si" if app_token else "NO (vacio)"))
             threading.Thread(target=self._probar_login,
-                             args=(win, ok, err, btn, url, user, pwd, app_token),
+                             args=(res, url, user, pwd, app_token),
                              daemon=True).start()
 
         marco, btn = boton_brutal(cont, "CONECTAR Y GUARDAR", conectar, primario=True)
@@ -864,10 +865,31 @@ class App:
         aplicar_tema_barra(win)
         poner_icono(win)
         win.grab_set()
+
+        def revisar():
+            if not win.winfo_exists():
+                return
+            try:
+                tipo, dato = res.get_nowait()
+            except queue.Empty:
+                win.after(120, revisar)
+                return
+            if tipo == "err":
+                try:
+                    err.configure(text="> " + dato)
+                    btn.configure(state="normal", text="CONECTAR Y GUARDAR")
+                except tk.TclError:
+                    return
+                win.after(120, revisar)
+            else:
+                ok["valor"] = True
+                win.destroy()
+
+        win.after(120, revisar)
         self.root.wait_window(win)
         return ok["valor"]
 
-    def _probar_login(self, win, ok, err, btn, url, user, pwd, app_token):
+    def _probar_login(self, res, url, user, pwd, app_token):
         try:
             cli = GLPIClient(url, app_token)
             cli.login(login=user, password=pwd)
@@ -876,9 +898,7 @@ class App:
         except Exception as e:
             msg = str(e)
             log("Login fallido: %s" % msg)
-            self.root.after(0, lambda: (
-                err.configure(text="> " + msg),
-                btn.configure(state="normal", text="CONECTAR Y GUARDAR")))
+            res.put(("err", msg))
             return
         guardar_credenciales({"login": user, "password": pwd,
                               "user_token": "", "app_token": app_token})
@@ -886,8 +906,7 @@ class App:
         self.cfg["glpi_url"] = url
         save_config(self.cfg)
         log("Login correcto. Credenciales cifradas y guardadas.")
-        ok["valor"] = True
-        self.root.after(0, win.destroy)
+        res.put(("ok", None))
 
     # -- ventana principal de control ---------------------------------------
     def ventana_control(self):
