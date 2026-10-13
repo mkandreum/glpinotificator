@@ -1,0 +1,11 @@
+{
+  "glpi_url": "",
+  "poll_seconds": 30,
+  "solo_sin_asignar": true,
+  "categoria_contiene": [],
+  "sonido": true,
+  "sonido_volumen": 0.5,
+  "monitor_popup": "principal",
+  "popup_offset_cm": 0,
+  "max_popups": 5
+}

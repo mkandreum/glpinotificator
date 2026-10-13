@@ -1,0 +1,15 @@
+# datos de usuario y secretos (NUNCA se suben)
+config.json
+credenciales.dat
+estado.json
+debug.log
+tono.wav
+
+# python
+__pycache__/
+*.py[cod]
+
+# pyinstaller
+build/
+dist/
+*.spec
