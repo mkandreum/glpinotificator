@@ -165,11 +165,17 @@ def log(msg):
 def strip_html(raw):
     if not raw:
         return "(sin descripcion)"
-    text = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n", raw)
-    text = re.sub(r"(?i)</\s*p\s*>", "\n", text)
-    text = re.sub(r"(?i)</\s*(div|li|tr|h\d)\s*>", "\n", text)
+    text = html.unescape(raw)
+    if any(tag in text for tag in ("&lt;", "&#60;", "&gt;", "&#62;")):
+        text = html.unescape(text)
+    text = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n", text)
+    text = re.sub(r"(?i)</\s*p\s*>", "\n\n", text)
+    text = re.sub(r"(?i)</\s*(div|tr|h\d)\s*>", "\n", text)
+    text = re.sub(r"(?i)<\s*li\s*>", "• ", text)
+    text = re.sub(r"(?i)</\s*li\s*>", "\n", text)
     text = re.sub(r"<[^>]+>", "", text)
     text = html.unescape(text)
+    text = text.replace("\xa0", " ")
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n\s*\n+", "\n\n", text).strip()
     return text if text else "(sin descripcion)"
@@ -225,6 +231,13 @@ def save_state(state):
 # Cliente API REST de GLPI (solo libreria estandar)
 # --------------------------------------------------------------------------
 
+def _decode_body(raw_bytes: bytes) -> str:
+    try:
+        return raw_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw_bytes.decode("latin1", errors="replace")
+
+
 class GLPIError(Exception):
     pass
 
@@ -255,11 +268,11 @@ class GLPIClient:
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=25) as resp:
-                body = resp.read().decode("utf-8", errors="replace")
+                body = _decode_body(resp.read())
                 return json.loads(body) if body.strip() else {}
         except urllib.error.HTTPError as e:
             try:
-                err = json.loads(e.read().decode("utf-8", errors="replace"))
+                err = json.loads(_decode_body(e.read()))
             except ValueError:
                 err = str(e)
             if e.code in (400, 401) and retry and "initSession" not in path:
@@ -287,7 +300,7 @@ class GLPIClient:
                                          headers=headers, method="GET")
         try:
             with urllib.request.urlopen(req, timeout=25) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
+                body = json.loads(_decode_body(resp.read()))
         except urllib.error.HTTPError as e:
             if e.code == 401:
                 raise GLPIError("Usuario o contrasena incorrectos (o token no valido).")
@@ -447,10 +460,10 @@ def vigilante(app):
                                     break
                             app.avisos.put({
                                 "id": tid,
-                                "titulo": det.get("name", "(sin titulo)"),
+                                "titulo": html.unescape(det.get("name", "(sin titulo)")),
                                 "contenido": strip_html(det.get("content", "")),
                                 "fecha": det.get("date", ""),
-                                "solicitante": solicitante,
+                                "solicitante": html.unescape(solicitante),
                                 "prioridad": det.get("priority", ""),
                             })
                             log("Nueva peticion #%d: %s" % (tid, det.get("name", "")))
@@ -608,6 +621,16 @@ def poner_icono(win):
 
 
 # -- geometria de pantalla / multi-monitor -----------------------------------
+if sys.platform == "win32":
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+
 class _POINT(ctypes.Structure):
     _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
 
@@ -651,6 +674,33 @@ def _enum_monitores():
     return infos
 
 
+def _area_monitor_principal():
+    """Obtiene el area de trabajo del monitor principal segun Windows API."""
+    try:
+        u = ctypes.windll.user32
+        # Monitor 0 con MONITOR_DEFAULTTOPRIMARY = 1
+        hmon = u.MonitorFromWindow(0, 1)
+        if hmon:
+            mi = _MONITORINFO()
+            mi.cbSize = ctypes.sizeof(_MONITORINFO)
+            u.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(_MONITORINFO)]
+            u.GetMonitorInfoW.restype = ctypes.c_int
+            if u.GetMonitorInfoW(ctypes.c_void_p(hmon), ctypes.byref(mi)):
+                r = mi.rcWork
+                return (r.left, r.top, r.right, r.bottom)
+    except Exception:
+        pass
+    try:
+        from ctypes import wintypes
+        rect = wintypes.RECT()
+        # SPI_GETWORKAREA = 0x0030: area util del monitor principal
+        if ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):
+            return (rect.left, rect.top, rect.right, rect.bottom)
+    except Exception:
+        pass
+    return None
+
+
 def _area_monitor_raton():
     try:
         u = ctypes.windll.user32
@@ -678,6 +728,12 @@ def area_trabajo(win=None, modo="principal"):
     modo: 'principal' (por defecto), 'raton', o un numero 1..N (1=izquierda)."""
     modo = (str(modo).strip().lower() if modo is not None else "principal")
 
+    # Si se pide el monitor principal de Windows, consultar directamente la API de Windows
+    if modo in ("principal", "primario", "primary", "main", "default", ""):
+        ap = _area_monitor_principal()
+        if ap:
+            return ap
+
     monitores = _enum_monitores()
     if monitores:
         if modo == "raton":
@@ -698,6 +754,9 @@ def area_trabajo(win=None, modo="principal"):
         m = _area_monitor_raton()
         if m:
             return m
+    ap = _area_monitor_principal()
+    if ap:
+        return ap
     if win is not None:
         try:
             return (0, 0, win.winfo_screenwidth(), win.winfo_screenheight())
@@ -1069,29 +1128,17 @@ class App:
             reproducir_sonido_sutil(float(self.cfg.get("sonido_volumen", 0.5)))
 
         win = tk.Toplevel(self.root)
+        win.withdraw()  # Ocultar mientras se construye para evitar parpadeos en posicion incorrecta
         win.title("PETICION GLPI #%d" % aviso["id"] if aviso["id"] else "AVISO DE PRUEBA")
         win.configure(bg=C_INK)
         win.attributes("-topmost", True)
-        win.resizable(True, True)
+        win.resizable(False, False)
         win.highlightthickness = 0
 
-        W, H = 440, 380
         l, t, rr, bb = area_trabajo(win, self.cfg.get("monitor_popup", "principal"))
-        n = len(self.abiertos)
         margen = 20
-        # nunca mayor que el monitor donde aparece
-        W = min(W, rr - l - margen)
-        H = min(H, bb - t - margen)
-        try:
-            desplaz_x = int(round(float(self.cfg.get("popup_offset_cm", 0) or 0)
-                                  * win.winfo_fpixels("1c")))
-        except (TypeError, ValueError, tk.TclError):
-            desplaz_x = int(round(float(self.cfg.get("popup_offset_cm", 0) or 0) * 37.8))
-        fx = rr - W - margen - (n % 3) * 26 - desplaz_x
-        fy = bb - H - margen - (n % 3) * 26
-        # limitar a los 4 bordes del monitor para no salir cortado
-        fx = min(max(fx, l), rr - W)
-        fy = min(max(fy, t), bb - H)
+        ancho_monitor = max(200, rr - l)
+        alto_monitor = max(200, bb - t)
 
         es_prueba = aviso.get("prueba")
         try:
@@ -1132,7 +1179,7 @@ class App:
         cuerpo.pack(fill="both", expand=True)
 
         tk.Label(cuerpo, text=aviso["titulo"], bg=C_PAPER, fg=C_INK,
-                 font=(F_HEAD, 12, "bold"), wraplength=W - 44,
+                 font=(F_HEAD, 12, "bold"), wraplength=420,
                  justify="left").pack(anchor="w", padx=14, pady=(10, 3))
 
         meta = "ABIERTA %s" % (aviso["fecha"] or "?")
@@ -1145,7 +1192,7 @@ class App:
         caja.pack(fill="both", expand=True, padx=14, pady=10)
         txt = scrolledtext.ScrolledText(caja, wrap="word", bg=C_WHITE, fg=C_INK,
                                         font=(F_MONO, 9), relief="flat",
-                                        height=5, padx=9, pady=9,
+                                        width=36, height=5, padx=9, pady=9,
                                         highlightthickness=0)
         txt.pack(fill="both", expand=True, padx=2, pady=2)
         txt.insert("1.0", aviso["contenido"][:3000])
@@ -1194,23 +1241,44 @@ class App:
             url = self.cfg["glpi_url"].rstrip("/") + "/front/ticket.form.php?id=%d" % aviso["id"]
             link.bind("<Button-1>", lambda e: webbrowser.open(url))
 
+        # Medir dimensiones reales solicitadas por los widgets
+        win.update_idletasks()
+        req_w = win.winfo_reqwidth()
+        req_h = win.winfo_reqheight()
+
+        # Dimensiones finales: ni excesivas ni menores que los widgets, nunca desbordando el monitor
+        W = max(460, min(req_w, ancho_monitor - 2 * margen))
+        H = max(370, min(req_h, alto_monitor - 2 * margen))
+        W = min(W, ancho_monitor - 2 * margen)
+        H = min(H, alto_monitor - 2 * margen)
+
+        n = len(self.abiertos)
+        try:
+            desplaz_x = int(round(float(self.cfg.get("popup_offset_cm", 0) or 0)
+                                  * win.winfo_fpixels("1c")))
+        except (TypeError, ValueError, tk.TclError):
+            desplaz_x = int(round(float(self.cfg.get("popup_offset_cm", 0) or 0) * 37.8))
+
+        fx = rr - W - margen - (n % 3) * 26 - desplaz_x
+        fy = bb - H - margen - (n % 3) * 26
+
+        # CLAMPING ESTRICTO: garantiza que el popup NUNCA invada monitores vecinos
+        fx = max(l + margen, min(fx, rr - W - margen))
+        fy = max(t + margen, min(fy, bb - H - margen))
+
         self.abiertos.append(win)
         win.protocol("WM_DELETE_WINDOW", cerrar)
-        self._animar_entrada(win, fx, fy, rr - W, bb - H)
         aplicar_tema_barra(win)
         poner_icono(win)
+        self._animar_entrada(win, W, H, fx, fy, bb)
 
-    def _animar_entrada(self, win, fx, fy, x_max=None, y_max=None):
-        """Entrada suave: desliza desde la derecha con easing (ease-out cubic) y
-        fundido. Compacta y rapida (unos 250 ms). Nunca se sale del monitor."""
-        dx, dy = 90, 8
-        if x_max is not None:
-            dx = max(0, min(dx, x_max - fx))
-        if y_max is not None:
-            dy = max(0, min(dy, y_max - fy))
-        pasos = {"i": 0, "n": 16, "dx": dx, "dy": dy}
+    def _animar_entrada(self, win, W, H, fx, fy, bb):
+        """Entrada suave: deslizamiento vertical ascendente y fundido alfa.
+        Se mantiene estrictamente dentro de la pantalla asignada."""
+        dy = min(30, max(0, bb - H - fy))
+        pasos = {"i": 0, "n": 14, "dy": dy}
         try:
-            win.geometry("+%d+%d" % (fx + dx, fy + dy))
+            win.geometry("%dx%d+%d+%d" % (W, H, fx, fy + dy))
             win.attributes("-alpha", 0.0)
             win.deiconify()
         except tk.TclError:
@@ -1224,13 +1292,13 @@ class App:
                 pasos["i"] += 1
                 k = pasos["i"] / pasos["n"]
                 e = ease_out(k)
-                win.geometry("+%d+%d" % (int(fx + pasos["dx"] * (1 - e)),
-                                         int(fy + pasos["dy"] * (1 - e))))
+                cur_y = int(fy + pasos["dy"] * (1 - e))
+                win.geometry("%dx%d+%d+%d" % (W, H, fx, cur_y))
                 win.attributes("-alpha", min(1.0, e * 1.25))
                 if pasos["i"] < pasos["n"]:
                     win.after(14, paso)
                 else:
-                    win.geometry("+%d+%d" % (fx, fy))
+                    win.geometry("%dx%d+%d+%d" % (W, H, fx, fy))
                     win.attributes("-alpha", 1.0)
             except tk.TclError:
                 pass
