@@ -795,7 +795,8 @@ class App:
         win.configure(bg=C_PAPER)
         win.resizable(True, True)
         win.minsize(430, 620)
-        centrar_en_pantalla(win, 430, 720, self.cfg.get("monitor_popup", "principal"))
+        W, H = 430, 720
+        centrar_en_pantalla(win, W, H, self.cfg.get("monitor_popup", "principal"))
         win.protocol("WM_DELETE_WINDOW", win.destroy)
         win.attributes("-topmost", True)
         try:
